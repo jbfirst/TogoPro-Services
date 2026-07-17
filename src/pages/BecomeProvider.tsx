@@ -5,7 +5,7 @@ import { CATEGORIES, NEIGHBORHOODS } from "../lib/constants";
 
 export function BecomeProvider() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"form" | "success">("form");
+  const [step, setStep] = useState<"form" | "success" | "confirm-email">("form");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -51,6 +51,15 @@ export function BecomeProvider() {
     }
 
     // 2. Créer la fiche prestataire liée à ce compte
+    // Si la confirmation d'email est activée côté Supabase, signUp() ne crée pas de
+    // session immédiate — dans ce cas on ne peut pas encore insérer la fiche (bloqué par
+    // la sécurité de la base). On le détecte et on guide l'utilisateur vers la suite.
+    if (!signUpData.session) {
+      setLoading(false);
+      setStep("confirm-email");
+      return;
+    }
+
     const { error: insertError } = await supabase.from("providers").insert({
       user_id: signUpData.user.id,
       full_name: form.full_name,
@@ -70,6 +79,25 @@ export function BecomeProvider() {
     }
 
     setStep("success");
+  }
+
+  if (step === "confirm-email") {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-24 text-center md:px-8">
+        <h1 className="text-2xl font-bold text-ink">Vérifiez votre boîte email</h1>
+        <p className="mt-3 text-ink-soft">
+          Votre compte a été créé. Cliquez sur le lien reçu par email pour le confirmer, puis
+          connectez-vous — vous pourrez alors compléter votre fiche prestataire depuis votre
+          tableau de bord.
+        </p>
+        <button
+          onClick={() => navigate("/connexion")}
+          className="mt-6 rounded-control bg-terracotta px-6 py-3 text-sm font-semibold text-white hover:bg-terracotta-dark"
+        >
+          Aller à la connexion
+        </button>
+      </div>
+    );
   }
 
   if (step === "success") {
