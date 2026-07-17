@@ -73,11 +73,11 @@ export function BecomeProvider() {
 
     setLoading(false);
 
-   if (insertError) {
-  console.error(insertError);
-  alert(JSON.stringify(insertError, null, 2));
-  return;
-}
+    if (insertError) {
+      setError("Compte créé, mais la fiche n'a pas pu être enregistrée. Contactez-nous.");
+      return;
+    }
+
     setStep("success");
   }
 

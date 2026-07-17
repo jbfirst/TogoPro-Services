@@ -11,18 +11,27 @@ export function Dashboard() {
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
+  async function loadProvider() {
     if (!user) return;
-    supabase
+
+    const { data, error } = await supabase
       .from("providers")
       .select("*")
       .eq("user_id", user.id)
-      .single()
-      .then(({ data }) => {
-        setProvider(data);
-        setLoading(false);
-      });
-  }, [user]);
+      .maybeSingle();
+
+    if (data) {
+      setProvider(data);
+      setLoading(false);
+      return;
+    }
+
+ setProvider(null);
+setLoading(false);
+
+  loadProvider();
+}, [user]);
 
   function update<K extends keyof Provider>(key: K, value: Provider[K]) {
     if (!provider) return;
