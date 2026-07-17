@@ -5,33 +5,39 @@ import { CATEGORIES, NEIGHBORHOODS, type Provider } from "../lib/constants";
 
 export function Dashboard() {
   const { user } = useAuth();
+
   const [provider, setProvider] = useState<Provider | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
 
- useEffect(() => {
-  async function loadProvider() {
-    if (!user) return;
 
-    const { data, error } = await supabase
-      .from("providers")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
+  useEffect(() => {
+    async function loadProvider() {
+      if (!user) return;
 
-    if (data) {
-      setProvider(data);
+      const { data, error } = await supabase
+        .from("providers")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.log(error);
+      }
+
+      if (data) {
+        setProvider(data);
+      } else {
+        setProvider(null);
+      }
+
       setLoading(false);
-      return;
     }
 
- setProvider(null);
-setLoading(false);
-
-  loadProvider();
-}, [user]);
+    loadProvider();
+  }, [user]);
 
   function update<K extends keyof Provider>(key: K, value: Provider[K]) {
     if (!provider) return;
