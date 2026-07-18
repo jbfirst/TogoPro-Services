@@ -2,11 +2,14 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { MessageCircle, MapPin } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
-import { categoryLabel, type Provider, type Review } from "../lib/constants";
+import { type Provider, type Review } from "../lib/constants";
+import { useCatalog } from "../lib/CatalogContext";
 import { VerifiedBadge, PremiumBadge } from "../components/Badges";
 import { RatingStars } from "../components/RatingStars";
+import { ProviderMap } from "../components/ProviderMap";
 
 export function ProviderDetail() {
+  const { categoryLabel } = useCatalog();
   const { id } = useParams();
   const [provider, setProvider] = useState<Provider | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -135,6 +138,17 @@ export function ProviderDetail() {
             <p className="mt-3 text-sm font-medium text-terracotta">{provider.rate_info}</p>
           )}
         </div>
+
+        {provider.latitude && provider.longitude && (
+          <div className="mt-6 border-t border-sand pt-6">
+            <h2 className="mb-3 font-semibold text-ink">Localisation</h2>
+            <ProviderMap
+              latitude={provider.latitude}
+              longitude={provider.longitude}
+              name={provider.full_name}
+            />
+          </div>
+        )}
       </div>
 
       {/* Avis */}

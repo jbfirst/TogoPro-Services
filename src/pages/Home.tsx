@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, MessageCircle, ShieldCheck, Search } from "lucide-react";
-import { CATEGORIES, NEIGHBORHOODS } from "../lib/constants";
+import { useCatalog } from "../lib/CatalogContext";
 import { CategoryIcon } from "../components/CategoryIcon";
 
 export function Home() {
   const navigate = useNavigate();
+  const { categories, neighborhoods } = useCatalog();
   const [category, setCategory] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
 
@@ -41,7 +42,7 @@ export function Home() {
               className="flex-1 rounded-control border border-sand px-3 py-3 text-sm text-ink"
             >
               <option value="">Quel service ?</option>
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
@@ -53,9 +54,9 @@ export function Home() {
               className="flex-1 rounded-control border border-sand px-3 py-3 text-sm text-ink"
             >
               <option value="">Quel quartier ?</option>
-              {NEIGHBORHOODS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
+              {neighborhoods.map((n) => (
+                <option key={n.id} value={n.label}>
+                  {n.label}
                 </option>
               ))}
             </select>
@@ -96,7 +97,7 @@ export function Home() {
       <section className="mx-auto max-w-6xl px-4 pb-20 md:px-8">
         <h2 className="mb-6 text-2xl font-bold text-ink">Parcourir par catégorie</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <button
               key={c.id}
               onClick={() => navigate(`/prestataires?categorie=${c.id}`)}

@@ -1,42 +1,29 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/AuthContext";
-import { CATEGORIES, NEIGHBORHOODS, type Provider } from "../lib/constants";
+import { type Provider } from "../lib/constants";
+import { useCatalog } from "../lib/CatalogContext";
 
 export function Dashboard() {
   const { user } = useAuth();
-
+  const { categories, neighborhoods } = useCatalog();
   const [provider, setProvider] = useState<Provider | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-
   useEffect(() => {
-    async function loadProvider() {
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("providers")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.log(error);
-      }
-
-      if (data) {
+    if (!user) return;
+    supabase
+      .from("providers")
+      .select("*")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => {
         setProvider(data);
-      } else {
-        setProvider(null);
-      }
-
-      setLoading(false);
-    }
-
-    loadProvider();
+        setLoading(false);
+      });
   }, [user]);
 
   function update<K extends keyof Provider>(key: K, value: Provider[K]) {
@@ -58,6 +45,8 @@ export function Dashboard() {
         phone: provider.phone,
         description: provider.description,
         rate_info: provider.rate_info,
+        latitude: provider.latitude,
+        longitude: provider.longitude,
       })
       .eq("id", provider.id);
     setSaving(false);
@@ -104,6 +93,26 @@ export function Dashboard() {
     }
   }
 
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
+
+  function handleLocate() {
+    if (!navigator.geolocation || !provider) return;
+    setLocating(true);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        update("latitude", pos.coords.latitude);
+        update("longitude", pos.coords.longitude);
+        setLocating(false);
+      },
+      () => {
+        setLocationError("Localisation refusée ou indisponible.");
+        setLocating(false);
+      }
+    );
+  }
+
   if (loading) return <p className="py-24 text-center text-ink-soft">Chargement…</p>;
 
   if (!provider) {
@@ -117,6 +126,12 @@ export function Dashboard() {
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-card border border-sand bg-white p-4">
         <StatusPill status={provider.status} />
         <p className="text-sm text-ink-soft">{provider.view_count} vues de profil</p>
+        {provider.is_premium && provider.premium_until && (
+          <p className="text-sm font-medium text-gold">
+            Premium actif jusqu'au{" "}
+            {new Date(provider.premium_until).toLocaleDateString("fr-FR")}
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSave} className="mt-6 space-y-4 rounded-card border border-sand bg-white p-5">
@@ -136,7 +151,7 @@ export function Dashboard() {
               onChange={(e) => update("category_id", e.target.value)}
               className="input"
             >
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
@@ -149,9 +164,9 @@ export function Dashboard() {
               onChange={(e) => update("neighborhood", e.target.value)}
               className="input"
             >
-              {NEIGHBORHOODS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
+              {neighborhoods.map((n) => (
+                <option key={n.id} value={n.label}>
+                  {n.label}
                 </option>
               ))}
             </select>
@@ -165,6 +180,22 @@ export function Dashboard() {
             onChange={(e) => update("phone", e.target.value)}
             className="input"
           />
+        </Field>
+
+        <Field label="Localisation précise">
+          <button
+            type="button"
+            onClick={handleLocate}
+            disabled={locating}
+            className="rounded-control border border-sand bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-sand disabled:opacity-60"
+          >
+            {locating
+              ? "Localisation…"
+              : provider.latitude
+              ? "✓ Position enregistrée — relocaliser"
+              : "📍 Utiliser ma position actuelle"}
+          </button>
+          {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
         </Field>
 
         <Field label="Description">
@@ -217,16 +248,29 @@ export function Dashboard() {
 
 function CreateProviderProfile({ onCreated }: { onCreated: (p: Provider) => void }) {
   const { user } = useAuth();
+  const { categories, neighborhoods } = useCatalog();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     full_name: "",
-    category_id: CATEGORIES[0].id as string,
-    neighborhood: NEIGHBORHOODS[0] as string,
+    category_id: "",
+    neighborhood: "",
     phone: "",
     description: "",
     rate_info: "",
   });
+
+  useEffect(() => {
+    if (categories.length > 0 && !form.category_id) {
+      setForm((f) => ({ ...f, category_id: categories[0].id }));
+    }
+  }, [categories]);
+
+  useEffect(() => {
+    if (neighborhoods.length > 0 && !form.neighborhood) {
+      setForm((f) => ({ ...f, neighborhood: neighborhoods[0].label }));
+    }
+  }, [neighborhoods]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -266,7 +310,7 @@ function CreateProviderProfile({ onCreated }: { onCreated: (p: Provider) => void
           onChange={(e) => setForm({ ...form, category_id: e.target.value })}
           className="input"
         >
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>
@@ -277,9 +321,9 @@ function CreateProviderProfile({ onCreated }: { onCreated: (p: Provider) => void
           onChange={(e) => setForm({ ...form, neighborhood: e.target.value })}
           className="input"
         >
-          {NEIGHBORHOODS.map((n) => (
-            <option key={n} value={n}>
-              {n}
+          {neighborhoods.map((n) => (
+            <option key={n.id} value={n.label}>
+              {n.label}
             </option>
           ))}
         </select>
@@ -316,6 +360,7 @@ function StatusPill({ status }: { status: Provider["status"] }) {
     pending: { text: "En attente de validation", cls: "bg-ocre/20 text-terracotta-dark" },
     approved: { text: "Publiée", cls: "bg-green/10 text-green" },
     rejected: { text: "Refusée", cls: "bg-danger/10 text-danger" },
+    blocked: { text: "Bloquée par l'administration", cls: "bg-danger/10 text-danger" },
   } as const;
   const s = map[status];
   return (

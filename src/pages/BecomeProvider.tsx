@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
-import { CATEGORIES, NEIGHBORHOODS } from "../lib/constants";
+import { useCatalog } from "../lib/CatalogContext";
 
 export function BecomeProvider() {
   const navigate = useNavigate();
+  const { categories, neighborhoods } = useCatalog();
   const [step, setStep] = useState<"form" | "success" | "confirm-email">("form");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,12 +21,54 @@ export function BecomeProvider() {
     email: "",
     password: "",
     full_name: "",
-    category_id: CATEGORIES[0].id as string,
-    neighborhood: NEIGHBORHOODS[0] as string,
+    category_id: "",
+    neighborhood: "",
     phone: "",
     description: "",
     rate_info: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
+
+  // Une fois le catalogue chargé depuis la base, on pré-sélectionne la première
+  // catégorie/quartier si rien n'est encore choisi.
+  useEffect(() => {
+    if (categories.length > 0 && !form.category_id) {
+      setForm((f) => ({ ...f, category_id: categories[0].id }));
+    }
+  }, [categories]);
+
+  useEffect(() => {
+    if (neighborhoods.length > 0 && !form.neighborhood) {
+      setForm((f) => ({ ...f, neighborhood: neighborhoods[0].label }));
+    }
+  }, [neighborhoods]);
+
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
+
+  function handleLocate() {
+    if (!navigator.geolocation) {
+      setLocationError("La géolocalisation n'est pas disponible sur cet appareil.");
+      return;
+    }
+    setLocating(true);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((f) => ({
+          ...f,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        }));
+        setLocating(false);
+      },
+      () => {
+        setLocationError("Localisation refusée ou indisponible. Vous pouvez continuer sans.");
+        setLocating(false);
+      }
+    );
+  }
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -42,11 +85,32 @@ export function BecomeProvider() {
       password: form.password,
     });
 
-    if (signUpError || !signUpData.user) {
+    if (signUpError) {
       setLoading(false);
-      setError(signUpError?.message === "User already registered"
-        ? "Un compte existe déjà avec cet email. Connectez-vous plutôt."
-        : "Impossible de créer le compte. Vérifiez vos informations.");
+      setError(
+        signUpError.message === "User already registered"
+          ? "Un compte existe déjà avec cet email. Connectez-vous plutôt (menu Connexion), vous pourrez compléter votre fiche depuis votre tableau de bord."
+          : `Impossible de créer le compte (${signUpError.message}).`
+      );
+      return;
+    }
+
+    if (!signUpData.user) {
+      setLoading(false);
+      setError("Impossible de créer le compte. Vérifiez vos informations.");
+      return;
+    }
+
+    // Piège Supabase peu documenté : si l'email existe déjà, signUp() ne renvoie PAS
+    // d'erreur (mesure anti-énumération d'emails) — mais l'utilisateur retourné a un
+    // tableau "identities" vide et aucune session n'est créée. Sans cette détection, on
+    // affichait à tort "vérifiez votre email" en boucle à chaque nouvelle tentative.
+    const alreadyExists = signUpData.user.identities && signUpData.user.identities.length === 0;
+    if (alreadyExists) {
+      setLoading(false);
+      setError(
+        "Un compte existe déjà avec cet email. Connectez-vous plutôt (menu Connexion) — vous pourrez compléter votre fiche depuis votre tableau de bord juste après."
+      );
       return;
     }
 
@@ -68,13 +132,18 @@ export function BecomeProvider() {
       phone: form.phone,
       description: form.description,
       rate_info: form.rate_info,
+      latitude: form.latitude,
+      longitude: form.longitude,
       status: "pending",
     });
 
     setLoading(false);
 
     if (insertError) {
-      setError("Compte créé, mais la fiche n'a pas pu être enregistrée. Contactez-nous.");
+      console.error("Erreur insertion fiche prestataire :", insertError);
+      setError(
+        `Compte créé, mais la fiche n'a pas pu être enregistrée (${insertError.message}). Contactez-nous si ça persiste.`
+      );
       return;
     }
 
@@ -199,7 +268,7 @@ export function BecomeProvider() {
               onChange={(e) => update("category_id", e.target.value)}
               className="input"
             >
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
@@ -212,9 +281,9 @@ export function BecomeProvider() {
               onChange={(e) => update("neighborhood", e.target.value)}
               className="input"
             >
-              {NEIGHBORHOODS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
+              {neighborhoods.map((n) => (
+                <option key={n.id} value={n.label}>
+                  {n.label}
                 </option>
               ))}
             </select>
@@ -229,6 +298,25 @@ export function BecomeProvider() {
             onChange={(e) => update("phone", e.target.value)}
             className="input"
           />
+        </Field>
+
+        <Field label="Localisation précise (facultatif)">
+          <button
+            type="button"
+            onClick={handleLocate}
+            disabled={locating}
+            className="rounded-control border border-sand bg-white px-4 py-2 text-sm font-medium text-ink hover:bg-sand disabled:opacity-60"
+          >
+            {locating
+              ? "Localisation…"
+              : form.latitude
+              ? "✓ Position enregistrée — relocaliser"
+              : "📍 Utiliser ma position actuelle"}
+          </button>
+          {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
+          <p className="mt-1 text-xs text-ink-soft">
+            Aide les clients à vous trouver sur la carte. Faites-le depuis votre lieu de travail.
+          </p>
         </Field>
 
         <Field label="Description de vos services">

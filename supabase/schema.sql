@@ -29,6 +29,25 @@ insert into categories (id, label, icon) values
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------
+-- Table: neighborhoods (quartiers, gérables depuis l'admin)
+-- ---------------------------------------------------------
+create table if not exists neighborhoods (
+  id text primary key,
+  label text not null
+);
+
+insert into neighborhoods (id, label) values
+  ('be', 'Bè'),
+  ('adidogome', 'Adidogomé'),
+  ('agoe', 'Agoè'),
+  ('tokoin', 'Tokoin'),
+  ('kodjoviakope', 'Kodjoviakopé'),
+  ('nyekonakpoe', 'Nyékonakpoè'),
+  ('hedzranawoe', 'Hédzranawoé'),
+  ('djidjole', 'Djidjolé')
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------
 -- Table: providers (fiches prestataires)
 -- ---------------------------------------------------------
 create table if not exists providers (
@@ -41,9 +60,12 @@ create table if not exists providers (
   description text not null default '',
   rate_info text default '',              -- tarif indicatif en texte libre, ex: "À partir de 2000 FCFA"
   photo_urls text[] default '{}',         -- URLs Supabase Storage
+  latitude double precision,              -- position GPS (facultatif)
+  longitude double precision,             -- position GPS (facultatif)
   is_verified boolean default false,      -- validé par un admin
   is_premium boolean default false,       -- abonnement premium actif
-  status text default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  premium_until date,                     -- date de fin du Premium (null = jamais activé)
+  status text default 'pending' check (status in ('pending', 'approved', 'rejected', 'blocked')),
   view_count integer default 0,
   created_at timestamptz default now()
 );
@@ -108,6 +130,32 @@ create policy "Admins voient tout"
 create policy "Admins modifient tout"
   on providers for update
   using (exists (select 1 from admins where admins.user_id = auth.uid()));
+
+create policy "Admins suppriment tout"
+  on providers for delete
+  using (exists (select 1 from admins where admins.user_id = auth.uid()));
+
+-- Sécurité sur categories et neighborhoods : lecture publique, écriture admin uniquement
+alter table categories enable row level security;
+alter table neighborhoods enable row level security;
+
+create policy "Catégories visibles publiquement"
+  on categories for select
+  using (true);
+
+create policy "Admins gèrent les catégories"
+  on categories for all
+  using (exists (select 1 from admins where admins.user_id = auth.uid()))
+  with check (exists (select 1 from admins where admins.user_id = auth.uid()));
+
+create policy "Quartiers visibles publiquement"
+  on neighborhoods for select
+  using (true);
+
+create policy "Admins gèrent les quartiers"
+  on neighborhoods for all
+  using (exists (select 1 from admins where admins.user_id = auth.uid()))
+  with check (exists (select 1 from admins where admins.user_id = auth.uid()));
 
 -- Avis : lecture publique, écriture ouverte (avis "libres", sans compte requis)
 create policy "Avis visibles publiquement"

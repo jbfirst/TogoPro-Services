@@ -1,13 +1,13 @@
 import { Link } from "react-router-dom";
 import { MapPin } from "lucide-react";
 import type { Provider } from "../lib/constants";
-import { categoryLabel } from "../lib/constants";
-import { CategoryIcon, } from "./CategoryIcon";
+import { useCatalog } from "../lib/CatalogContext";
+import { CategoryIcon } from "./CategoryIcon";
 import { VerifiedBadge, PremiumBadge } from "./Badges";
 
 export function ProviderCard({ provider, rating }: { provider: Provider; rating?: number }) {
-  const category = categoryLabel(provider.category_id);
-  const cat = provider.category_id;
+  const { categories } = useCatalog();
+  const cat = categories.find((c) => c.id === provider.category_id);
 
   return (
     <Link
@@ -24,14 +24,14 @@ export function ProviderCard({ provider, rating }: { provider: Provider; rating?
                 className="h-11 w-11 rounded-full object-cover"
               />
             ) : (
-              <CategoryIcon name={CATEGORY_ICON[cat] ?? "Wrench"} size={20} />
+              <CategoryIcon name={cat?.icon ?? "Wrench"} size={20} />
             )}
           </span>
           <div>
             <p className="font-semibold text-ink group-hover:text-terracotta">
               {provider.full_name}
             </p>
-            <p className="text-xs text-ink-soft">{category}</p>
+            <p className="text-xs text-ink-soft">{cat?.label ?? provider.category_id}</p>
           </div>
         </div>
         {provider.is_premium && <PremiumBadge />}
@@ -54,16 +54,3 @@ export function ProviderCard({ provider, rating }: { provider: Provider; rating?
     </Link>
   );
 }
-
-const CATEGORY_ICON: Record<string, string> = {
-  plomberie: "Wrench",
-  electricite: "Zap",
-  beaute: "Scissors",
-  traiteur: "ChefHat",
-  mecanique: "Car",
-  menage: "Sparkles",
-  maconnerie: "HardHat",
-  menuiserie: "Hammer",
-  couture: "Shirt",
-  informatique: "Laptop",
-};

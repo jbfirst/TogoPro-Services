@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
-import { CATEGORIES, NEIGHBORHOODS, type Provider } from "../lib/constants";
+import { type Provider } from "../lib/constants";
+import { useCatalog } from "../lib/CatalogContext";
 import { ProviderCard } from "../components/ProviderCard";
 
 export function ProvidersList() {
+  const { categories, neighborhoods } = useCatalog();
   const [params, setParams] = useSearchParams();
   const category = params.get("categorie") ?? "";
   const neighborhood = params.get("quartier") ?? "";
@@ -72,7 +74,7 @@ export function ProvidersList() {
           className="rounded-control border border-sand bg-white px-3 py-2 text-sm text-ink"
         >
           <option value="">Toutes les catégories</option>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>
@@ -84,9 +86,9 @@ export function ProvidersList() {
           className="rounded-control border border-sand bg-white px-3 py-2 text-sm text-ink"
         >
           <option value="">Tous les quartiers</option>
-          {NEIGHBORHOODS.map((n) => (
-            <option key={n} value={n}>
-              {n}
+          {neighborhoods.map((n) => (
+            <option key={n.id} value={n.label}>
+              {n.label}
             </option>
           ))}
         </select>
