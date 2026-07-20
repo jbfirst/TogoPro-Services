@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X, MapPin } from "lucide-react";
 import { useAuth } from "../lib/AuthContext";
 import { supabase } from "../lib/supabaseClient";
@@ -7,7 +7,17 @@ import { supabase } from "../lib/supabaseClient";
 export function Header() {
   const { user, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    supabase
+      .from("providers")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending")
+      .then(({ count }) => setPendingCount(count ?? 0));
+  }, [isAdmin]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -50,8 +60,16 @@ export function Header() {
           {user ? (
             <>
               {isAdmin && (
-                <Link to="/admin" className="text-sm font-medium text-ink hover:text-terracotta">
+                <Link
+                  to="/admin"
+                  className="flex items-center gap-1.5 text-sm font-medium text-ink hover:text-terracotta"
+                >
                   Admin
+                  {pendingCount > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-pill bg-terracotta px-1 text-xs font-bold text-white">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Link>
               )}
               <Link to="/tableau-de-bord" className="text-sm font-medium text-ink hover:text-terracotta">

@@ -8,6 +8,8 @@ export function SignIn() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"signin" | "reset">("signin");
+  const [resetSent, setResetSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,6 +29,69 @@ export function SignIn() {
       provider: "google",
       options: { redirectTo: `${window.location.origin}/tableau-de-bord` },
     });
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/nouveau-mot-de-passe`,
+    });
+    setLoading(false);
+    if (error) {
+      setError(`Impossible d'envoyer l'email (${error.message}).`);
+      return;
+    }
+    setResetSent(true);
+  }
+
+  if (mode === "reset") {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 md:px-8">
+        <h1 className="text-2xl font-bold text-ink">Mot de passe oublié</h1>
+        {resetSent ? (
+          <p className="mt-4 text-ink-soft">
+            Si un compte existe avec cet email, un lien de réinitialisation vient de vous être
+            envoyé. Vérifiez votre boîte de réception (et vos spams).
+          </p>
+        ) : (
+          <>
+            <p className="mt-1 text-sm text-ink-soft">
+              Entrez votre email, vous recevrez un lien pour choisir un nouveau mot de passe.
+            </p>
+            <form onSubmit={handleResetPassword} className="mt-6 space-y-4">
+              <input
+                type="email"
+                required
+                placeholder="Votre email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-control border border-sand px-3 py-2 text-sm"
+              />
+              {error && <p className="text-sm text-danger">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-control bg-terracotta px-5 py-3 text-sm font-semibold text-white hover:bg-terracotta-dark disabled:opacity-60"
+              >
+                {loading ? "Envoi…" : "Envoyer le lien"}
+              </button>
+            </form>
+          </>
+        )}
+        <button
+          onClick={() => {
+            setMode("signin");
+            setResetSent(false);
+            setError("");
+          }}
+          className="mt-6 text-sm font-medium text-terracotta"
+        >
+          ← Retour à la connexion
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -59,7 +124,16 @@ export function SignIn() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink">Mot de passe</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-sm font-medium text-ink">Mot de passe</label>
+            <button
+              type="button"
+              onClick={() => setMode("reset")}
+              className="text-xs font-medium text-terracotta"
+            >
+              Mot de passe oublié ?
+            </button>
+          </div>
           <input
             type="password"
             required

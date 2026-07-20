@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/AuthContext";
-import { type Provider } from "../lib/constants";
+import { type Provider, type ProviderItem, type Review } from "../lib/constants";
 import { useCatalog } from "../lib/CatalogContext";
 
 export function Dashboard() {
@@ -242,6 +242,9 @@ export function Dashboard() {
           {saving ? "Enregistrement…" : "Enregistrer les modifications"}
         </button>
       </form>
+
+      <ItemsManager providerId={provider.id} />
+      <ReviewsPanel providerId={provider.id} />
     </div>
   );
 }
@@ -374,5 +377,192 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="mb-1 block text-sm font-medium text-ink">{label}</span>
       {children}
     </label>
+  );
+}
+
+// =========================================================
+// Réalisations / articles à vendre
+// =========================================================
+function ItemsManager({ providerId }: { providerId: string }) {
+  const { user } = useAuth();
+  const [items, setItems] = useState<ProviderItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", price_info: "" });
+
+  useEffect(() => {
+    load();
+  }, [providerId]);
+
+  function load() {
+    setLoading(true);
+    supabase
+      .from("provider_items")
+      .select("*")
+      .eq("provider_id", providerId)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setItems(data ?? []);
+        setLoading(false);
+      });
+  }
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.title) return;
+    await supabase.from("provider_items").insert({
+      provider_id: providerId,
+      title: form.title,
+      description: form.description,
+      price_info: form.price_info,
+    });
+    setForm({ title: "", description: "", price_info: "" });
+    load();
+  }
+
+  async function handlePhoto(itemId: string, file: File) {
+    if (!user) return;
+    setUploading(true);
+    const safeName = file.name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9.]/g, "-")
+      .toLowerCase();
+    const path = `${user.id}/items/${Date.now()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage
+      .from("provider-photos")
+      .upload(path, file);
+    if (!uploadError) {
+      const { data: urlData } = supabase.storage.from("provider-photos").getPublicUrl(path);
+      await supabase
+        .from("provider_items")
+        .update({ photo_url: urlData.publicUrl })
+        .eq("id", itemId);
+      load();
+    }
+    setUploading(false);
+  }
+
+  async function handleDelete(itemId: string) {
+    if (!confirm("Supprimer cette réalisation ?")) return;
+    await supabase.from("provider_items").delete().eq("id", itemId);
+    load();
+  }
+
+  return (
+    <div className="mt-6 rounded-card border border-sand bg-white p-5">
+      <h2 className="font-semibold text-ink">Réalisations & articles à vendre</h2>
+      <p className="mt-1 text-sm text-ink-soft">
+        Montrez votre travail ou vos produits — visible directement sur votre fiche publique.
+      </p>
+
+      {loading ? (
+        <p className="mt-4 text-sm text-ink-soft">Chargement…</p>
+      ) : (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {items.map((item) => (
+            <div key={item.id} className="rounded-control border border-sand p-3">
+              {item.photo_url ? (
+                <img
+                  src={item.photo_url}
+                  className="mb-2 h-28 w-full rounded-control object-cover"
+                />
+              ) : (
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={(e) => e.target.files && handlePhoto(item.id, e.target.files[0])}
+                  className="mb-2 text-xs"
+                />
+              )}
+              <p className="text-sm font-medium text-ink">{item.title}</p>
+              {item.price_info && (
+                <p className="text-xs font-medium text-terracotta">{item.price_info}</p>
+              )}
+              <button
+                onClick={() => handleDelete(item.id)}
+                className="mt-2 text-xs font-medium text-danger"
+              >
+                Supprimer
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={handleAdd} className="mt-4 space-y-2 border-t border-sand pt-4">
+        <input
+          type="text"
+          placeholder="Titre (ex: Installation solaire, Robe sur mesure...)"
+          value={form.title}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+          className="input"
+        />
+        <textarea
+          placeholder="Description (facultatif)"
+          rows={2}
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          className="input"
+        />
+        <input
+          type="text"
+          placeholder="Prix (facultatif, ex: 15 000 FCFA)"
+          value={form.price_info}
+          onChange={(e) => setForm({ ...form, price_info: e.target.value })}
+          className="input"
+        />
+        <button
+          type="submit"
+          className="rounded-control bg-terracotta px-4 py-2 text-sm font-semibold text-white hover:bg-terracotta-dark"
+        >
+          Ajouter
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// =========================================================
+// Avis reçus
+// =========================================================
+function ReviewsPanel({ providerId }: { providerId: string }) {
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("reviews")
+      .select("*")
+      .eq("provider_id", providerId)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setReviews(data ?? []);
+        setLoading(false);
+      });
+  }, [providerId]);
+
+  if (loading) return null;
+
+  return (
+    <div className="mt-6 rounded-card border border-sand bg-white p-5">
+      <h2 className="font-semibold text-ink">Avis reçus ({reviews.length})</h2>
+      {reviews.length === 0 ? (
+        <p className="mt-2 text-sm text-ink-soft">Aucun avis pour l'instant.</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {reviews.map((r) => (
+            <div key={r.id} className="border-b border-sand pb-3 last:border-0">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-ink">{r.author_name}</p>
+                <span className="text-xs text-gold">{"★".repeat(r.rating)}</span>
+              </div>
+              {r.comment && <p className="mt-1 text-sm text-ink-soft">{r.comment}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

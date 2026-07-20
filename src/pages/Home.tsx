@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, MessageCircle, ShieldCheck, Search } from "lucide-react";
 import { useCatalog } from "../lib/CatalogContext";
+import { supabase } from "../lib/supabaseClient";
 import { CategoryIcon } from "../components/CategoryIcon";
 
 export function Home() {
@@ -9,6 +10,15 @@ export function Home() {
   const { categories, neighborhoods } = useCatalog();
   const [category, setCategory] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
+  const [providerCount, setProviderCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("providers")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "approved")
+      .then(({ count }) => setProviderCount(count ?? 0));
+  }, []);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -67,6 +77,13 @@ export function Home() {
               <Search size={16} /> Rechercher
             </button>
           </form>
+
+          {providerCount !== null && providerCount > 0 && (
+            <p className="mt-4 text-sm font-medium text-green">
+              ✓ {providerCount} prestataire{providerCount > 1 ? "s" : ""} vérifié
+              {providerCount > 1 ? "s" : ""} déjà sur TogoPro Services
+            </p>
+          )}
         </div>
       </section>
 

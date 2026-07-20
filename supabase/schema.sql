@@ -89,6 +89,21 @@ create table if not exists reviews (
 create index if not exists idx_reviews_provider on reviews(provider_id);
 
 -- ---------------------------------------------------------
+-- Table: provider_items (réalisations, articles à vendre, portfolio)
+-- ---------------------------------------------------------
+create table if not exists provider_items (
+  id uuid primary key default uuid_generate_v4(),
+  provider_id uuid references providers(id) on delete cascade not null,
+  title text not null,
+  description text default '',
+  price_info text default '',
+  photo_url text,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_items_provider on provider_items(provider_id);
+
+-- ---------------------------------------------------------
 -- Table: admins (liste blanche des comptes admin)
 -- ---------------------------------------------------------
 create table if not exists admins (
@@ -156,6 +171,22 @@ create policy "Admins gèrent les quartiers"
   on neighborhoods for all
   using (exists (select 1 from admins where admins.user_id = auth.uid()))
   with check (exists (select 1 from admins where admins.user_id = auth.uid()));
+
+-- Sécurité sur provider_items : lecture publique, écriture par le propriétaire de la fiche
+alter table provider_items enable row level security;
+
+create policy "Réalisations visibles publiquement"
+  on provider_items for select
+  using (true);
+
+create policy "Le prestataire gère ses réalisations"
+  on provider_items for all
+  using (exists (select 1 from providers where providers.id = provider_id and providers.user_id = auth.uid()))
+  with check (exists (select 1 from providers where providers.id = provider_id and providers.user_id = auth.uid()));
+
+create policy "Admins gèrent toutes les réalisations"
+  on provider_items for all
+  using (exists (select 1 from admins where admins.user_id = auth.uid()));
 
 -- Avis : lecture publique, écriture ouverte (avis "libres", sans compte requis)
 create policy "Avis visibles publiquement"

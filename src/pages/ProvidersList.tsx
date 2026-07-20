@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Search } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { type Provider } from "../lib/constants";
 import { useCatalog } from "../lib/CatalogContext";
@@ -10,6 +11,7 @@ export function ProvidersList() {
   const [params, setParams] = useSearchParams();
   const category = params.get("categorie") ?? "";
   const neighborhood = params.get("quartier") ?? "";
+  const [search, setSearch] = useState("");
 
   const [providers, setProviders] = useState<Provider[]>([]);
   const [ratings, setRatings] = useState<Record<string, number>>({});
@@ -63,11 +65,25 @@ export function ProvidersList() {
     setParams(next);
   }
 
+  const filteredProviders = search.trim()
+    ? providers.filter((p) => p.full_name.toLowerCase().includes(search.trim().toLowerCase()))
+    : providers;
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
       <h1 className="text-2xl font-bold text-ink md:text-3xl">Trouver un prestataire</h1>
 
       <div className="mt-6 flex flex-wrap gap-3">
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" />
+          <input
+            type="text"
+            placeholder="Rechercher un nom…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-control border border-sand bg-white py-2 pl-9 pr-3 text-sm text-ink"
+          />
+        </div>
         <select
           value={category}
           onChange={(e) => updateParam("categorie", e.target.value)}
@@ -96,16 +112,16 @@ export function ProvidersList() {
 
       {loading ? (
         <p className="mt-10 text-center text-ink-soft">Chargement des prestataires…</p>
-      ) : providers.length === 0 ? (
+      ) : filteredProviders.length === 0 ? (
         <div className="mt-10 rounded-card border border-dashed border-sand bg-white p-10 text-center">
           <p className="font-medium text-ink">Aucun prestataire trouvé pour ce filtre</p>
           <p className="mt-1 text-sm text-ink-soft">
-            Essayez une autre catégorie ou un autre quartier, ou revenez bientôt.
+            Essayez une autre catégorie, un autre quartier, ou un autre nom.
           </p>
         </div>
       ) : (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {providers.map((p) => (
+          {filteredProviders.map((p) => (
             <ProviderCard key={p.id} provider={p} rating={ratings[p.id]} />
           ))}
         </div>

@@ -13,6 +13,8 @@ export function Admin() {
     <div className="mx-auto max-w-5xl px-4 py-10 md:px-8">
       <h1 className="text-2xl font-bold text-ink">Administration</h1>
 
+      <AdminStats />
+
       <div className="mt-6 flex gap-2">
         <TabButton active={tab === "fiches"} onClick={() => setTab("fiches")}>
           Fiches prestataires
@@ -50,6 +52,65 @@ function TabButton({
     >
       {children}
     </button>
+  );
+}
+
+// =========================================================
+// Statistiques globales
+// =========================================================
+function AdminStats() {
+  const [stats, setStats] = useState<{
+    total: number;
+    pending: number;
+    approved: number;
+    premium: number;
+    totalViews: number;
+  } | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("providers")
+      .select("status, is_premium, view_count")
+      .then(({ data }) => {
+        if (!data) return;
+        setStats({
+          total: data.length,
+          pending: data.filter((p) => p.status === "pending").length,
+          approved: data.filter((p) => p.status === "approved").length,
+          premium: data.filter((p) => p.is_premium).length,
+          totalViews: data.reduce((sum, p) => sum + (p.view_count ?? 0), 0),
+        });
+      });
+  }, []);
+
+  if (!stats) return null;
+
+  const cards = [
+    { label: "Fiches au total", value: stats.total },
+    { label: "En attente", value: stats.pending, highlight: stats.pending > 0 },
+    { label: "Publiées", value: stats.approved },
+    { label: "Premium actifs", value: stats.premium },
+    { label: "Vues cumulées", value: stats.totalViews },
+  ];
+
+  return (
+    <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      {cards.map((c) => (
+        <div
+          key={c.label}
+          className={`rounded-card border p-3 text-center ${
+            c.highlight ? "border-terracotta bg-terracotta/5" : "border-sand bg-white"
+          }`}
+        >
+          <p
+            className={`text-xl font-bold ${c.highlight ? "text-terracotta" : "text-ink"}`}
+          >
+            {c.value}
+          </p>
+          <p className="text-xs text-ink-soft">{c.label}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 

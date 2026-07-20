@@ -30,3 +30,13 @@ export type Review = {
   comment: string;
   created_at: string;
 };
+
+export type ProviderItem = {
+  id: string;
+  provider_id: string;
+  title: string;
+  description: string;
+  price_info: string;
+  photo_url: string | null;
+  created_at: string;
+};

@@ -8,6 +8,7 @@ import { ProvidersList } from "./pages/ProvidersList";
 import { ProviderDetail } from "./pages/ProviderDetail";
 import { BecomeProvider } from "./pages/BecomeProvider";
 import { SignIn } from "./pages/SignIn";
+import { NewPassword } from "./pages/NewPassword";
 import { Dashboard } from "./pages/Dashboard";
 import { Admin } from "./pages/Admin";
 import { About } from "./pages/About";
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/prestataires/:id" element={<ProviderDetail />} />
             <Route path="/devenir-prestataire" element={<BecomeProvider />} />
             <Route path="/connexion" element={<SignIn />} />
+            <Route path="/nouveau-mot-de-passe" element={<NewPassword />} />
             <Route path="/a-propos" element={<About />} />
             <Route
               path="/tableau-de-bord"

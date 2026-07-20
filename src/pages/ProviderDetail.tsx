@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { MessageCircle, MapPin } from "lucide-react";
+import { MessageCircle, MapPin, Share2 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
-import { type Provider, type Review } from "../lib/constants";
+import { type Provider, type Review, type ProviderItem } from "../lib/constants";
 import { useCatalog } from "../lib/CatalogContext";
 import { VerifiedBadge, PremiumBadge } from "../components/Badges";
 import { RatingStars } from "../components/RatingStars";
@@ -13,6 +13,7 @@ export function ProviderDetail() {
   const { id } = useParams();
   const [provider, setProvider] = useState<Provider | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [items, setItems] = useState<ProviderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewForm, setReviewForm] = useState({ author_name: "", rating: 5, comment: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -30,6 +31,12 @@ export function ProviderDetail() {
         setLoading(false);
       });
     loadReviews();
+    supabase
+      .from("provider_items")
+      .select("*")
+      .eq("provider_id", id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setItems(data ?? []));
     // Incrémente discrètement le compteur de vues
     supabase.rpc("increment_provider_views", { p_id: id }).then(() => {});
   }, [id]);
@@ -83,6 +90,28 @@ export function ProviderDetail() {
     `Bonjour ${provider.full_name}, je vous ai trouvé sur TogoPro Services et je suis intéressé(e) par vos services.`
   )}`;
 
+  async function handleShare() {
+    if (!provider) return;
+    const shareData = {
+      title: `${provider.full_name} — TogoPro Services`,
+      text: `Découvrez ${provider.full_name} (${categoryLabel(provider.category_id)}) sur TogoPro Services`,
+      url: window.location.href,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        // partage annulé par l'utilisateur, rien à faire
+      }
+    } else {
+      // Pas de partage natif (desktop) → on ouvre WhatsApp avec le lien de la fiche
+      window.open(
+        `https://wa.me/?text=${encodeURIComponent(`${shareData.text} : ${shareData.url}`)}`,
+        "_blank"
+      );
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 md:px-8">
       <div className="rounded-card border border-sand bg-white p-6 shadow-soft md:p-8">
@@ -106,14 +135,22 @@ export function ProviderDetail() {
               </div>
             )}
           </div>
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 rounded-control bg-green px-5 py-3 text-sm font-semibold text-white hover:bg-green-dark"
-          >
-            <MessageCircle size={18} /> Contacter sur WhatsApp
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-2 rounded-control border border-sand bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-sand"
+            >
+              <Share2 size={18} /> Partager
+            </button>
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 rounded-control bg-green px-5 py-3 text-sm font-semibold text-white hover:bg-green-dark"
+            >
+              <MessageCircle size={18} /> Contacter sur WhatsApp
+            </a>
+          </div>
         </div>
 
         {provider.photo_urls.length > 0 && (
@@ -147,6 +184,36 @@ export function ProviderDetail() {
               longitude={provider.longitude}
               name={provider.full_name}
             />
+          </div>
+        )}
+
+        {items.length > 0 && (
+          <div className="mt-6 border-t border-sand pt-6">
+            <h2 className="mb-3 font-semibold text-ink">Réalisations & articles</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {items.map((item) => (
+                <div key={item.id} className="overflow-hidden rounded-card border border-sand">
+                  {item.photo_url && (
+                    <img
+                      src={item.photo_url}
+                      alt={item.title}
+                      className="h-40 w-full object-cover"
+                    />
+                  )}
+                  <div className="p-3">
+                    <p className="font-medium text-ink">{item.title}</p>
+                    {item.description && (
+                      <p className="mt-1 text-sm text-ink-soft">{item.description}</p>
+                    )}
+                    {item.price_info && (
+                      <p className="mt-1 text-sm font-medium text-terracotta">
+                        {item.price_info}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
