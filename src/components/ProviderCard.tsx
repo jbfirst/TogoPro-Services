@@ -5,7 +5,15 @@ import { useCatalog } from "../lib/CatalogContext";
 import { CategoryIcon } from "./CategoryIcon";
 import { VerifiedBadge, PremiumBadge } from "./Badges";
 
-export function ProviderCard({ provider, rating }: { provider: Provider; rating?: number }) {
+export function ProviderCard({
+  provider,
+  rating,
+  distanceKm,
+}: {
+  provider: Provider;
+  rating?: number;
+  distanceKm?: number;
+}) {
   const { categories } = useCatalog();
   const cat = categories.find((c) => c.id === provider.category_id);
 
@@ -39,6 +47,11 @@ export function ProviderCard({ provider, rating }: { provider: Provider; rating?
 
       <p className="flex items-center gap-1 text-sm text-ink-soft">
         <MapPin size={14} /> {provider.neighborhood}
+        {distanceKm !== undefined && (
+          <span className="ml-1 font-medium text-terracotta">
+            · {distanceKm < 1 ? "moins de 1 km" : `${distanceKm.toFixed(1)} km`}
+          </span>
+        )}
       </p>
 
       {provider.rate_info && (

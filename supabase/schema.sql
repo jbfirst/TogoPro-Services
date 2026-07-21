@@ -83,10 +83,26 @@ create table if not exists reviews (
   author_name text not null,
   rating integer not null check (rating between 1 and 5),
   comment text default '',
+  reply text,
+  replied_at timestamptz,
   created_at timestamptz default now()
 );
 
 create index if not exists idx_reviews_provider on reviews(provider_id);
+
+-- ---------------------------------------------------------
+-- Table: reports (signalements de fiches)
+-- ---------------------------------------------------------
+create table if not exists reports (
+  id uuid primary key default uuid_generate_v4(),
+  provider_id uuid references providers(id) on delete cascade not null,
+  reason text not null,
+  details text default '',
+  resolved boolean default false,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_reports_provider on reports(provider_id);
 
 -- ---------------------------------------------------------
 -- Table: provider_items (réalisations, articles à vendre, portfolio)
@@ -196,6 +212,31 @@ create policy "Avis visibles publiquement"
 create policy "Tout le monde peut laisser un avis"
   on reviews for insert
   with check (true);
+
+create policy "Le prestataire répond à ses avis"
+  on reviews for update
+  using (
+    exists (
+      select 1 from providers
+      where providers.id = reviews.provider_id
+      and providers.user_id = auth.uid()
+    )
+  );
+
+-- Signalements : tout le monde peut signaler, seuls les admins voient/traitent
+alter table reports enable row level security;
+
+create policy "Tout le monde peut signaler"
+  on reports for insert
+  with check (true);
+
+create policy "Admins voient les signalements"
+  on reports for select
+  using (exists (select 1 from admins where admins.user_id = auth.uid()));
+
+create policy "Admins traitent les signalements"
+  on reports for update
+  using (exists (select 1 from admins where admins.user_id = auth.uid()));
 
 -- Admins : lecture de sa propre entrée uniquement (juste pour vérifier le statut admin)
 create policy "Un admin peut vérifier son propre statut"

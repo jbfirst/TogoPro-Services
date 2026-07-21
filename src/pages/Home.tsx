@@ -4,8 +4,13 @@ import { CheckCircle2, MessageCircle, ShieldCheck, Search } from "lucide-react";
 import { useCatalog } from "../lib/CatalogContext";
 import { supabase } from "../lib/supabaseClient";
 import { CategoryIcon } from "../components/CategoryIcon";
+import { useDocumentTitle } from "../lib/useDocumentTitle";
 
 export function Home() {
+  useDocumentTitle(
+    "Trouvez un plombier, électricien, coiffeuse... à Lomé",
+    "Annuaire de prestataires de services vérifiés à Lomé, Togo. Plombiers, électriciens, coiffeuses, traiteurs et plus, dans votre quartier."
+  );
   const navigate = useNavigate();
   const { categories, neighborhoods } = useCatalog();
   const [category, setCategory] = useState("");

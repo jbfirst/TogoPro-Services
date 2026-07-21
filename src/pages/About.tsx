@@ -1,4 +1,10 @@
+import { useDocumentTitle } from "../lib/useDocumentTitle";
+
 export function About() {
+  useDocumentTitle(
+    "À propos",
+    "Découvrez TogoPro Services, la plateforme qui connecte les habitants de Lomé aux artisans et prestataires vérifiés de leur quartier."
+  );
   return (
     <div className="mx-auto max-w-2xl px-4 py-16 md:px-8">
       <h1 className="text-2xl font-bold text-ink md:text-3xl">À propos de TogoPro Services</h1>

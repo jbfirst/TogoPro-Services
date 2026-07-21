@@ -28,6 +28,17 @@ export type Review = {
   author_name: string;
   rating: number;
   comment: string;
+  reply: string | null;
+  replied_at: string | null;
+  created_at: string;
+};
+
+export type Report = {
+  id: string;
+  provider_id: string;
+  reason: string;
+  details: string;
+  resolved: boolean;
   created_at: string;
 };
 

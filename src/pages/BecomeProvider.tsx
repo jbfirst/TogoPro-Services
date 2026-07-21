@@ -9,6 +9,15 @@ export function BecomeProvider() {
   const [step, setStep] = useState<"form" | "success" | "confirm-email">("form");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
+
+  async function handleResendConfirmation() {
+    setResending(true);
+    await supabase.auth.resend({ type: "signup", email: form.email });
+    setResending(false);
+    setResendDone(true);
+  }
 
   async function handleGoogleSignUp() {
     await supabase.auth.signInWithOAuth({
@@ -165,6 +174,19 @@ export function BecomeProvider() {
         >
           Aller à la connexion
         </button>
+        <div className="mt-4">
+          {resendDone ? (
+            <p className="text-sm text-green">Email renvoyé !</p>
+          ) : (
+            <button
+              onClick={handleResendConfirmation}
+              disabled={resending}
+              className="text-sm font-medium text-terracotta underline disabled:opacity-60"
+            >
+              {resending ? "Envoi…" : "Je n'ai rien reçu, renvoyer l'email"}
+            </button>
+          )}
+        </div>
       </div>
     );
   }

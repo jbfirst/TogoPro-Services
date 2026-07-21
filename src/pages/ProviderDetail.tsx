@@ -7,6 +7,8 @@ import { useCatalog } from "../lib/CatalogContext";
 import { VerifiedBadge, PremiumBadge } from "../components/Badges";
 import { RatingStars } from "../components/RatingStars";
 import { ProviderMap } from "../components/ProviderMap";
+import { ReportButton } from "../components/ReportButton";
+import { useDocumentTitle } from "../lib/useDocumentTitle";
 
 export function ProviderDetail() {
   const { categoryLabel } = useCatalog();
@@ -18,6 +20,13 @@ export function ProviderDetail() {
   const [reviewForm, setReviewForm] = useState({ author_name: "", rating: 5, comment: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  useDocumentTitle(
+    provider ? `${provider.full_name} — ${categoryLabel(provider.category_id)}` : "Fiche prestataire",
+    provider
+      ? `${provider.full_name}, ${categoryLabel(provider.category_id)} à ${provider.neighborhood}, Lomé. Contactez directement sur WhatsApp.`
+      : undefined
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -233,6 +242,14 @@ export function ProviderDetail() {
                 <RatingStars rating={r.rating} size={14} />
               </div>
               {r.comment && <p className="mt-1 text-sm text-ink-soft">{r.comment}</p>}
+              {r.reply && (
+                <div className="mt-3 rounded-control bg-sand/60 p-3">
+                  <p className="text-xs font-semibold text-ink">
+                    Réponse de {provider.full_name} :
+                  </p>
+                  <p className="mt-0.5 text-sm text-ink-soft">{r.reply}</p>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -281,6 +298,8 @@ export function ProviderDetail() {
           )}
         </div>
       </div>
+
+      <ReportButton providerId={provider.id} />
     </div>
   );
 }

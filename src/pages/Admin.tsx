@@ -1,13 +1,22 @@
 import { useEffect, useState } from "react";
-import { Trash2, Plus, Ban, CheckCircle2 } from "lucide-react";
+import { Trash2, Plus, Ban, CheckCircle2, Flag, Download } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
-import { type Provider } from "../lib/constants";
+import { type Provider, type Report } from "../lib/constants";
 import { useCatalog } from "../lib/CatalogContext";
 
-type Tab = "fiches" | "categories" | "quartiers";
+type Tab = "fiches" | "categories" | "quartiers" | "signalements";
 
 export function Admin() {
   const [tab, setTab] = useState<Tab>("fiches");
+  const [reportCount, setReportCount] = useState(0);
+
+  useEffect(() => {
+    supabase
+      .from("reports")
+      .select("*", { count: "exact", head: true })
+      .eq("resolved", false)
+      .then(({ count }) => setReportCount(count ?? 0));
+  }, [tab]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 md:px-8">
@@ -15,7 +24,7 @@ export function Admin() {
 
       <AdminStats />
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         <TabButton active={tab === "fiches"} onClick={() => setTab("fiches")}>
           Fiches prestataires
         </TabButton>
@@ -25,11 +34,15 @@ export function Admin() {
         <TabButton active={tab === "quartiers"} onClick={() => setTab("quartiers")}>
           Quartiers
         </TabButton>
+        <TabButton active={tab === "signalements"} onClick={() => setTab("signalements")}>
+          Signalements{reportCount > 0 ? ` (${reportCount})` : ""}
+        </TabButton>
       </div>
 
       {tab === "fiches" && <FichesTab />}
       {tab === "categories" && <CategoriesTab />}
       {tab === "quartiers" && <NeighborhoodsTab />}
+      {tab === "signalements" && <ReportsTab />}
     </div>
   );
 }
@@ -176,9 +189,46 @@ function FichesTab() {
 
   const today = new Date().toISOString().slice(0, 10);
 
+  function handleExportCsv() {
+    const headers = [
+      "Nom",
+      "Catégorie",
+      "Quartier",
+      "Téléphone",
+      "Statut",
+      "Vérifié",
+      "Premium",
+      "Premium jusqu'au",
+      "Vues",
+      "Créé le",
+    ];
+    const rows = providers.map((p) => [
+      p.full_name,
+      categoryLabel(p.category_id),
+      p.neighborhood,
+      p.phone,
+      p.status,
+      p.is_verified ? "Oui" : "Non",
+      p.is_premium ? "Oui" : "Non",
+      p.premium_until ?? "",
+      String(p.view_count),
+      new Date(p.created_at).toLocaleDateString("fr-FR"),
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `togopro-fiches-${today}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <>
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap items-center gap-2">
         {(["pending", "approved", "rejected", "blocked", "all"] as const).map((f) => (
           <button
             key={f}
@@ -198,6 +248,12 @@ function FichesTab() {
               : "Toutes"}
           </button>
         ))}
+        <button
+          onClick={handleExportCsv}
+          className="ml-auto flex items-center gap-1.5 rounded-pill border border-sand bg-white px-4 py-1.5 text-sm font-medium text-ink hover:bg-sand"
+        >
+          <Download size={14} /> Exporter en CSV
+        </button>
       </div>
 
       {loading ? (
@@ -497,6 +553,91 @@ function NeighborhoodsTab() {
         </button>
       </form>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+    </div>
+  );
+}
+
+// =========================================================
+// Onglet Signalements
+// =========================================================
+function ReportsTab() {
+  const { categoryLabel } = useCatalog();
+  const [reports, setReports] = useState<(Report & { providers: Provider | null })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showResolved, setShowResolved] = useState(false);
+
+  useEffect(() => {
+    load();
+  }, [showResolved]);
+
+  function load() {
+    setLoading(true);
+    let query = supabase
+      .from("reports")
+      .select("*, providers(*)")
+      .order("created_at", { ascending: false });
+    if (!showResolved) query = query.eq("resolved", false);
+    query.then(({ data }) => {
+      setReports((data as any) ?? []);
+      setLoading(false);
+    });
+  }
+
+  async function markResolved(id: string) {
+    await supabase.from("reports").update({ resolved: true }).eq("id", id);
+    load();
+  }
+
+  return (
+    <div className="mt-6">
+      <label className="mb-4 flex items-center gap-2 text-sm text-ink-soft">
+        <input
+          type="checkbox"
+          checked={showResolved}
+          onChange={(e) => setShowResolved(e.target.checked)}
+        />
+        Afficher aussi les signalements déjà traités
+      </label>
+
+      {loading ? (
+        <p className="text-ink-soft">Chargement…</p>
+      ) : reports.length === 0 ? (
+        <p className="text-ink-soft">Aucun signalement en attente.</p>
+      ) : (
+        <div className="space-y-3">
+          {reports.map((r) => (
+            <div key={r.id} className="rounded-card border border-sand bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 font-semibold text-ink">
+                    <Flag size={14} className="text-danger" /> {r.reason}
+                  </p>
+                  <p className="mt-1 text-sm text-ink-soft">
+                    Fiche concernée :{" "}
+                    <span className="font-medium text-ink">
+                      {r.providers?.full_name ?? "Fiche supprimée"}
+                    </span>
+                    {r.providers && ` — ${categoryLabel(r.providers.category_id)}`}
+                  </p>
+                  {r.details && <p className="mt-1 text-sm text-ink-soft">{r.details}</p>}
+                  <p className="mt-1 text-xs text-ink-soft">
+                    {new Date(r.created_at).toLocaleDateString("fr-FR")}
+                    {r.resolved && " · Traité"}
+                  </p>
+                </div>
+                {!r.resolved && (
+                  <button
+                    onClick={() => markResolved(r.id)}
+                    className="flex items-center gap-1 rounded-control border border-green px-3 py-1.5 text-xs font-semibold text-green"
+                  >
+                    <CheckCircle2 size={14} /> Marquer traité
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

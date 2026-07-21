@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/AuthContext";
 import { type Provider, type ProviderItem, type Review } from "../lib/constants";
 import { useCatalog } from "../lib/CatalogContext";
+import { compressImage } from "../lib/compressImage";
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -54,9 +55,11 @@ export function Dashboard() {
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !provider || !user) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile || !provider || !user) return;
     setUploading(true);
+
+    const file = await compressImage(rawFile).catch(() => rawFile);
 
     // Nettoie le nom du fichier : enlève les accents et remplace tout ce qui n'est
     // pas alphanumérique par un tiret. Supabase Storage refuse certains caractères
@@ -389,6 +392,9 @@ function ItemsManager({ providerId }: { providerId: string }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", price_info: "" });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", description: "", price_info: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     load();
@@ -420,9 +426,10 @@ function ItemsManager({ providerId }: { providerId: string }) {
     load();
   }
 
-  async function handlePhoto(itemId: string, file: File) {
+  async function handlePhoto(itemId: string, rawFile: File) {
     if (!user) return;
     setUploading(true);
+    const file = await compressImage(rawFile).catch(() => rawFile);
     const safeName = file.name
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -449,6 +456,30 @@ function ItemsManager({ providerId }: { providerId: string }) {
     load();
   }
 
+  function startEdit(item: ProviderItem) {
+    setEditingId(item.id);
+    setEditForm({
+      title: item.title,
+      description: item.description,
+      price_info: item.price_info,
+    });
+  }
+
+  async function handleSaveEdit(itemId: string) {
+    setSavingEdit(true);
+    await supabase
+      .from("provider_items")
+      .update({
+        title: editForm.title,
+        description: editForm.description,
+        price_info: editForm.price_info,
+      })
+      .eq("id", itemId);
+    setSavingEdit(false);
+    setEditingId(null);
+    load();
+  }
+
   return (
     <div className="mt-6 rounded-card border border-sand bg-white p-5">
       <h2 className="font-semibold text-ink">Réalisations & articles à vendre</h2>
@@ -460,34 +491,86 @@ function ItemsManager({ providerId }: { providerId: string }) {
         <p className="mt-4 text-sm text-ink-soft">Chargement…</p>
       ) : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {items.map((item) => (
-            <div key={item.id} className="rounded-control border border-sand p-3">
-              {item.photo_url ? (
-                <img
-                  src={item.photo_url}
-                  className="mb-2 h-28 w-full rounded-control object-cover"
-                />
-              ) : (
+          {items.map((item) =>
+            editingId === item.id ? (
+              <div key={item.id} className="rounded-control border border-terracotta p-3">
                 <input
-                  type="file"
-                  accept="image/*"
-                  disabled={uploading}
-                  onChange={(e) => e.target.files && handlePhoto(item.id, e.target.files[0])}
-                  className="mb-2 text-xs"
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  className="input mb-2"
+                  placeholder="Titre"
                 />
-              )}
-              <p className="text-sm font-medium text-ink">{item.title}</p>
-              {item.price_info && (
-                <p className="text-xs font-medium text-terracotta">{item.price_info}</p>
-              )}
-              <button
-                onClick={() => handleDelete(item.id)}
-                className="mt-2 text-xs font-medium text-danger"
-              >
-                Supprimer
-              </button>
-            </div>
-          ))}
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  className="input mb-2"
+                  rows={2}
+                  placeholder="Description"
+                />
+                <input
+                  type="text"
+                  value={editForm.price_info}
+                  onChange={(e) => setEditForm({ ...editForm, price_info: e.target.value })}
+                  className="input mb-2"
+                  placeholder="Prix"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSaveEdit(item.id)}
+                    disabled={savingEdit}
+                    className="rounded-control bg-terracotta px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                  >
+                    {savingEdit ? "Enregistrement…" : "Enregistrer"}
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="rounded-control border border-sand px-3 py-1.5 text-xs font-medium text-ink"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div key={item.id} className="rounded-control border border-sand p-3">
+                {item.photo_url ? (
+                  <img
+                    src={item.photo_url}
+                    className="mb-2 h-28 w-full rounded-control object-cover"
+                  />
+                ) : (
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploading}
+                    onChange={(e) => e.target.files && handlePhoto(item.id, e.target.files[0])}
+                    className="mb-2 text-xs"
+                  />
+                )}
+                <p className="text-sm font-medium text-ink">{item.title}</p>
+                {item.description && (
+                  <p className="mt-0.5 text-xs text-ink-soft">{item.description}</p>
+                )}
+                {item.price_info && (
+                  <p className="text-xs font-medium text-terracotta">{item.price_info}</p>
+                )}
+                <div className="mt-2 flex gap-3">
+                  <button
+                    onClick={() => startEdit(item)}
+                    className="text-xs font-medium text-terracotta"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="text-xs font-medium text-danger"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
 
@@ -530,8 +613,15 @@ function ItemsManager({ providerId }: { providerId: string }) {
 function ReviewsPanel({ providerId }: { providerId: string }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [replyingId, setReplyingId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    load();
+  }, [providerId]);
+
+  function load() {
     supabase
       .from("reviews")
       .select("*")
@@ -541,7 +631,20 @@ function ReviewsPanel({ providerId }: { providerId: string }) {
         setReviews(data ?? []);
         setLoading(false);
       });
-  }, [providerId]);
+  }
+
+  async function handleSendReply(reviewId: string) {
+    if (!replyText.trim()) return;
+    setSaving(true);
+    await supabase
+      .from("reviews")
+      .update({ reply: replyText.trim(), replied_at: new Date().toISOString() })
+      .eq("id", reviewId);
+    setSaving(false);
+    setReplyingId(null);
+    setReplyText("");
+    load();
+  }
 
   if (loading) return null;
 
@@ -559,6 +662,48 @@ function ReviewsPanel({ providerId }: { providerId: string }) {
                 <span className="text-xs text-gold">{"★".repeat(r.rating)}</span>
               </div>
               {r.comment && <p className="mt-1 text-sm text-ink-soft">{r.comment}</p>}
+
+              {r.reply ? (
+                <div className="mt-2 rounded-control bg-sand/60 p-2 pl-3">
+                  <p className="text-xs font-semibold text-ink">Votre réponse :</p>
+                  <p className="text-xs text-ink-soft">{r.reply}</p>
+                </div>
+              ) : replyingId === r.id ? (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Votre réponse publique à cet avis…"
+                    rows={2}
+                    className="input"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSendReply(r.id)}
+                      disabled={saving}
+                      className="rounded-control bg-terracotta px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
+                    >
+                      Envoyer
+                    </button>
+                    <button
+                      onClick={() => setReplyingId(null)}
+                      className="rounded-control border border-sand px-3 py-1 text-xs text-ink"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setReplyingId(r.id);
+                    setReplyText("");
+                  }}
+                  className="mt-1 text-xs font-medium text-terracotta"
+                >
+                  Répondre
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /tableau-de-bord
+Disallow: /admin
+Disallow: /connexion
+Disallow: /nouveau-mot-de-passe
+
+Sitemap: https://togo-pro-services.vercel.app/sitemap.xml
